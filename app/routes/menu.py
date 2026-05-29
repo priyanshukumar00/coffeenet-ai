@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+from bson import ObjectId
 from app.schemas.menu import MenuItem
 from app.database.mongodb import database
 
@@ -35,3 +36,40 @@ def get_menu_items():
         "menu": items
     }
 
+
+@router.put("/menu/{item_id}")
+def update_menu_item(item_id: str, item: MenuItem):
+
+    updated_data = item.model_dump()
+
+    result = menu_collection.update_one(
+        {"_id": ObjectId(item_id)},
+        {"$set": updated_data}
+    )
+
+    if result.modified_count == 1:
+
+        return {
+            "message": "Menu item updated successfully"
+        }
+
+    return {
+        "message": "No item updated"
+    }
+
+@router.delete("/menu/{item_id}")
+def delete_menu_item(item_id: str):
+
+    result = menu_collection.delete_one(
+        {"_id": ObjectId(item_id)}
+    )
+
+    if result.deleted_count == 1:
+
+        return {
+            "message": "Menu item deleted successfully"
+        }
+
+    return {
+        "message": "No item found"
+    }
