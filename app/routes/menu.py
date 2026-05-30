@@ -1,7 +1,9 @@
 from fastapi import APIRouter
 from bson import ObjectId
 from app.schemas.menu import MenuItem
+from app.schemas.menu import MenuItemUpdate
 from app.database.mongodb import database
+from fastapi import Body
 
 router = APIRouter()
 
@@ -57,19 +59,48 @@ def update_menu_item(item_id: str, item: MenuItem):
         "message": "No item updated"
     }
 
-@router.delete("/menu/{item_id}")
-def delete_menu_item(item_id: str):
+@router.delete("/menu")
+def delete_menu_items(ids: list[str] = Body(...)):
 
-    result = menu_collection.delete_one(
-        {"_id": ObjectId(item_id)}
+    object_ids = [ObjectId(id) for id in ids]
+
+    result = menu_collection.delete_many(
+        {
+            "_id": {
+                "$in": object_ids
+            }
+        }
     )
 
-    if result.deleted_count == 1:
+    return {
+        "message": f"{result.deleted_count} item(s) deleted successfully"
+    }
 
-        return {
-            "message": "Menu item deleted successfully"
-        }
+
+
+@router.put("/menu/{item_id}")
+def update_menu_item(item_id: str, item: MenuItemUpdate):
+
+    update_data = item.model_dump(exclude_unset=True)
+
+    result = menu_collection.update_one(
+        {"_id": ObjectId(item_id)},
+        {"$set": update_data}
+    )
 
     return {
-        "message": "No item found"
+        "message": "Menu item updated successfully"
+    }
+    
+
+@router.patch("/menu/{item_id}")
+def update_menu_item(item_id: str, updates: dict = Body(...)):
+
+    result = menu_collection.update_one(
+        {"_id": ObjectId(item_id)},
+        {"$set": updates}
+    )
+
+    return {
+        "message": "Menu item updated successfully"
     }
