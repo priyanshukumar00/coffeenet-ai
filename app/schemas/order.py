@@ -7,3 +7,4 @@ class OrderItem(BaseModel):
 
 class Order(BaseModel):
     items: List[OrderItem]
+    status: str = "Pending"
