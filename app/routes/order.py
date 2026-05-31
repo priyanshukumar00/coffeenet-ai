@@ -1,7 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Body
 from bson import ObjectId
 from app.schemas.order import Order
 from app.database.mongodb import database
+from app.schemas.order import OrderStatusUpdate
 
 router = APIRouter()
 menu_collection = database["menu"]
@@ -67,3 +68,49 @@ def get_order(order_id: str):
     order["_id"] = str(order["_id"])
 
     return order
+
+
+
+@router.patch("/orders/{order_id}/status")
+def update_order_status(
+    order_id: str,
+    data: OrderStatusUpdate
+):
+
+    result = order_collection.update_one(
+        {"_id": ObjectId(order_id)},
+        {"$set": {"status": data.status}}
+    )
+
+    return {
+        "message": "Order status updated successfully"
+    }
+
+
+@router.delete("/orders/{order_id}")
+def delete_order(order_id: str):
+
+    result = order_collection.delete_one(
+        {"_id": ObjectId(order_id)}
+    )
+
+    return {
+        "message": "Order deleted successfully"
+    }
+
+@router.delete("/orders")
+def delete_orders(ids: list[str] = Body(...)):
+
+    object_ids = [ObjectId(id) for id in ids]
+
+    result = order_collection.delete_many(
+        {
+            "_id": {
+                "$in": object_ids
+            }
+        }
+    )
+
+    return {
+        "message": f"{result.deleted_count} order(s) deleted successfully"
+    }
