@@ -4,6 +4,7 @@ from app.routes.menu import router as menu_router
 from app.routes.order import router as order_router
 from app.routes.dashboard import router as dashboard_router
 from app.routes.inventory import router as inventory_router
+from app.routes.recipe import router as recipe_router
 
 
 app = FastAPI()
@@ -12,6 +13,7 @@ app.include_router(menu_router)
 app.include_router(order_router)
 app.include_router(dashboard_router)
 app.include_router(inventory_router)
+app.include_router(recipe_router)
 
 
 @app.get("/")
