@@ -1,17 +1,35 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Body, Depends
 from bson import ObjectId
+from fastapi import Query
 
 from app.database.mongodb import database
 from app.schemas.inventory import InventoryItem
 from app.schemas.inventory import InventoryItemUpdate
+from app.Utils.auth import manager_or_admin_required as manager_or_admin
 
 router = APIRouter()
 
 inventory_collection = database["inventory"]
+recipe_collection = database["recipes"]
 
 
 @router.post("/inventory")
-def create_inventory_item(item: InventoryItem):
+def create_inventory_item(item: InventoryItem, current_user = Depends(manager_or_admin)):
+
+    existing_item = inventory_collection.find_one(
+        {
+            "item_name": {
+                "$regex": f"^{item.item_name}$",
+                "$options": "i"
+            }
+        }
+    )
+
+    if existing_item:
+
+        return {
+            "message": f"{item.item_name} already exists in inventory"
+        }
 
     item_dict = item.model_dump()
 
@@ -24,40 +42,183 @@ def create_inventory_item(item: InventoryItem):
         "data": item_dict
     }
 
+
 @router.get("/inventory")
-def get_inventory():
+def get_inventory(
+
+    search: str = Query(
+        default=None
+    ),
+
+    page: int = Query(
+        default=1,
+        ge=1
+    ),
+
+    limit: int = Query(
+        default=10,
+        ge=1,
+        le=100
+    )
+
+):
+
+    query = {}
+
+    if search:
+
+        query["item_name"] = {
+            "$regex": search,
+            "$options": "i"
+        }
+
+    skip = (page - 1) * limit
 
     items = []
 
-    for item in inventory_collection.find():
+    cursor = (
+        inventory_collection
+        .find(query)
+        .skip(skip)
+        .limit(limit)
+    )
+
+    for item in cursor:
 
         item["_id"] = str(item["_id"])
 
         items.append(item)
 
+    total_items = inventory_collection.count_documents(
+        query
+    )
+
     return {
+
+        "page": page,
+
+        "limit": limit,
+
+        "total_items": total_items,
+
         "inventory": items
     }
 
 @router.put("/inventory/{item_id}")
-def update_inventory_item(item_id: str, item: InventoryItemUpdate):
+def update_inventory_item(
+    item_id: str,
+    item: InventoryItemUpdate,
+    current_user = Depends(manager_or_admin)
+):
 
-    update_data = item.model_dump(exclude_unset=True)
+    if not ObjectId.is_valid(item_id):
 
-    result = inventory_collection.update_one(
-        {"_id": ObjectId(item_id)},
-        {"$set": update_data}
+        return {
+            "message":
+            "Invalid inventory item id"
+        }
+
+    existing_item = inventory_collection.find_one(
+        {
+            "_id": ObjectId(item_id)
+        }
+    )
+
+    if not existing_item:
+
+        return {
+            "message":
+            "Inventory item not found"
+        }
+
+    update_data = item.model_dump(
+        exclude_unset=True
+    )
+
+    if not update_data:
+
+        return {
+            "message":
+            "No data provided for update"
+        }
+
+    if "item_name" in update_data:
+
+        duplicate_item = inventory_collection.find_one(
+            {
+                "item_name": {
+                    "$regex":
+                    f"^{update_data['item_name']}$",
+                    "$options": "i"
+                },
+                "_id": {
+                    "$ne": ObjectId(item_id)
+                }
+            }
+        )
+
+        if duplicate_item:
+
+            return {
+                "message":
+                f"{update_data['item_name']} already exists"
+            }
+
+    inventory_collection.update_one(
+        {
+            "_id": ObjectId(item_id)
+        },
+        {
+            "$set": update_data
+        }
     )
 
     return {
-        "message": "Inventory item updated successfully"
+        "message":
+        "Inventory item updated successfully"
     }
 
 
 @router.delete("/inventory")
-def delete_inventory_items(ids: list[str]):
+def delete_inventory_items(
+    ids: list[str] = Body(...), 
+    current_user = Depends(manager_or_admin)
+):
 
-    object_ids = [ObjectId(id) for id in ids]
+    if not ids:
+
+        return {
+            "message":
+            "Please provide at least one inventory id"
+        }
+
+    object_ids = []
+
+    for item_id in ids:
+
+        if not ObjectId.is_valid(item_id):
+
+            return {
+                "message":
+                f"{item_id} is not a valid inventory id"
+            }
+
+        recipe_exists = recipe_collection.find_one(
+            {
+                "ingredients.ingredient_id": item_id
+            }
+        )
+
+        if recipe_exists:
+
+            return {
+                "message":
+                "Cannot delete inventory item because it is being used in a recipe"
+            }
+
+        object_ids.append(
+            ObjectId(item_id)
+        )
 
     result = inventory_collection.delete_many(
         {
@@ -68,7 +229,8 @@ def delete_inventory_items(ids: list[str]):
     )
 
     return {
-        "message": f"{result.deleted_count} inventory item(s) deleted successfully"
+        "message":
+        f"{result.deleted_count} inventory item(s) deleted successfully"
     }
 
 
