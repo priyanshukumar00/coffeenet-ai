@@ -55,5 +55,3 @@ def create_access_token(data: dict):
     )
 
     return token
-
-print(SECRET_KEY)
