@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import DashboardLayout from "../layouts/DashboardLayout";
+import AdminMenu from "../pages/admin/AdminMenu";
 
 import ProtectedRoute from "../auth/ProtectedRoute";
 import RoleRoute from "../auth/RoleRoute";
@@ -19,6 +20,7 @@ const AppRoutes = () => {
         <Route element={<RoleRoute allowedRoles={["Admin"]} />}>
           <Route element={<DashboardLayout />}>
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/menu" element={<AdminMenu />} />
         </Route>
         </Route>
 
